@@ -1,0 +1,38 @@
+#!/bin/bash
+#
+# docker-compose is setting 3 sets of variables for the
+# same ip:port combination.  also, there can be more than
+# one set of links. so, this little script loops through all of
+# the set ADDR and PORT variables and creates a long list.
+# then turns them into ip:port, sorts that list for uniqueness,
+# and then waits on each of the unique ip:port's in the
+# list. obvious modifications include just waiting for the
+# first one, and/or putting in max retries
+# this requites bash, cut, egrep, sed, sort and sleep.
+#
+
+#
+# check for linked dependencies
+#
+hosts=($(env | grep _TCP_ADDR | cut -d = -f 1))
+ports=($(env | grep _TCP_PORT | cut -d = -f 1))
+
+pl=$(for host in ${hosts[@]};
+do
+  port=$(echo $host | sed 's/_ADDR/_PORT/')
+  hosti=$(env | egrep ^$host | cut -d = -f 2)
+  porti=$(env | egrep ^$port | cut -d = -f 2)
+  echo $hosti:$porti
+done | sort -u)
+
+for p in $pl
+do
+  echo waiting for $p
+  while ! nc -w 1 $p 2>/dev/null
+  do
+    echo -n .
+    sleep 1
+  done
+  echo 'done'
+done
+
